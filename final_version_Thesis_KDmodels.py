@@ -32,6 +32,8 @@ one_hot_encoded_data = load_pickle(one_hot_encoded_data_path)
 test_image_data = load_pickle(test_image_data_path)
 test_one_hot_encoded_data = load_pickle(test_one_hot_encoded_data_path)
 
+
+# We need to create a dataset of all our pickle files for the pytorch models to use. We compute some normalization methods for our models to perform better.
 from torch.utils.data import Dataset, DataLoader
 
 class SimpleDataset(Dataset):
@@ -108,6 +110,9 @@ for inputs, labels in train_loader:
 
     # Check the rest of your loop...
     break  # Remove or comment this out to check all batches, but be cautious with large datasets
+
+# after setting up all the dataset things, we can initialize the Teacher and Student. These are edited specifically to work on grayscale images in a specific resolution. 
+# if you want to use other sample data with this code, please edit the classes accordingly.
 
 # Deeper neural network class to be used as teacher:
 class DeepNN(nn.Module):
@@ -245,7 +250,7 @@ def test(model, test_loader, device):
     cm = confusion_matrix(all_labels, all_preds)
 
     cm_df = pd.DataFrame(cm)
-
+    # Saving the results to a csv with a recognizable name
     model_class_name = model.__class__.__name__
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     csv_file_path = f'./results/confusion_matrix_{model_class_name}_{timestamp}.csv'
@@ -268,6 +273,7 @@ def test(model, test_loader, device):
 
 torch.manual_seed(42)
 nn_deep = DeepNN(num_classes=6).to(device)
+# Train the teacher using the best hyperparameters
 train(nn_deep, train_loader, epochs=25, learning_rate=0.001, device=device)
 results_deep = test(nn_deep, test_loader, device)
 
@@ -288,6 +294,7 @@ print(f"DeepNN parameters: {total_params_deep}")
 total_params_light = "{:,}".format(sum(p.numel() for p in nn_light.parameters()))
 print(f"LightNN parameters: {total_params_light}")
 
+# Train the student using best hyperparameters
 train(nn_light, train_loader, epochs=10, learning_rate=0.001, device=device)
 results_light_ce = test(nn_light, test_loader, device)
 
@@ -347,7 +354,8 @@ def train_knowledge_distillation(teacher, student, train_loader, epochs, learnin
 
 
 
-# Apply ``train_knowledge_distillation`` with a temperature of 2. Arbitrarily set the weights to 0.75 for CE and 0.25 for distillation loss.
+# Use the first knowledge distillation method, this is used for our studentOut model trained on outputs of the teacher.
+# Initiliaze using best hyper parameters from previous testing
 train_knowledge_distillation(teacher=nn_deep, student=new_nn_light, train_loader=train_loader, epochs=25, learning_rate=0.001, T=2, soft_target_loss_weight=0.25, ce_loss_weight=0.75, device=device)
 test_accuracy_light_ce_and_kd = test(new_nn_light, test_loader, device)
 
@@ -526,7 +534,7 @@ def test_multiple_outputs(model, test_loader, device):
     cm_df = pd.DataFrame(cm)
 
 
-    # Generate a concise, unique identifier for the model
+    # Generate a concise, unique identifier for the model - this is so we can recognize what model we are actually using
     model_class_name = model.__class__.__name__
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     csv_file_path = f'./results/confusion_matrix_{model_class_name}_{timestamp}.csv'
@@ -536,7 +544,7 @@ def test_multiple_outputs(model, test_loader, device):
 
     return accuracy, csv_file_path
 
-# Train and test the lightweight network with cross entropy loss
+# Train and test the lightweight network with cross entropy loss utilizing best hyperparameters.
 train_cosine_loss(teacher=modified_nn_deep, student=modified_nn_light, train_loader=train_loader, epochs=25, learning_rate=0.001, hidden_rep_loss_weight=0.25, ce_loss_weight=0.75, device=device)
 test_accuracy_light_ce_and_cosine_loss, cm_csv_path = test_multiple_outputs(modified_nn_light, test_loader, device)
 
@@ -666,7 +674,7 @@ modified_nn_light_reg = ModifiedLightNNRegressor(num_classes=6).to(device)
 modified_nn_deep_reg = ModifiedDeepNNRegressor(num_classes=6).to(device)
 modified_nn_deep_reg.load_state_dict(nn_deep.state_dict())
 
-# Train and test once again
+# Train and test once again using the best hyperparameters
 train_mse_loss(teacher=modified_nn_deep_reg, student=modified_nn_light_reg, train_loader=train_loader, epochs=25, learning_rate=0.001, feature_map_weight=0.25, ce_loss_weight=0.75, device=device)
 test_accuracy_light_ce_and_mse_loss, cm_csv_path = test_multiple_outputs(modified_nn_light_reg, test_loader, device)
 
